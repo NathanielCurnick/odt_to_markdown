@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 zip = "0.6.4"
 xml-rs = "0.8.4"
+
+[dev-dependencies]
+difference = "2.0.0"

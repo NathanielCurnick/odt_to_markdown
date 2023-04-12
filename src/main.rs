@@ -10,6 +10,9 @@ use odt::read_odt;
 
 mod odt;
 
+#[cfg(test)]
+mod tests;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
