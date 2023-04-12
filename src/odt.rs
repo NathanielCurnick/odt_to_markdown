@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fs::File, hash::Hash, io::Read, path::PathBuf};
+use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
 
-use xml::{attribute::OwnedAttribute, name::OwnedName, namespace::Namespace, EventReader};
+use xml::{attribute::OwnedAttribute, name::OwnedName, namespace::Namespace};
 use zip::ZipArchive;
 
 #[derive(Clone, Copy, Debug)]
@@ -65,7 +65,6 @@ impl HashAdder {
             self.style = Some(Style::Normal);
         }
         if self.name.is_none() {
-            println!("Current HashAdder {:?}", self);
             panic!("Trying to add to HashMap when HashAdder is not ready");
         }
 
@@ -75,9 +74,15 @@ impl HashAdder {
 }
 
 pub fn read_odt(path: PathBuf) -> Result<String, String> {
-    let file = File::open(path).unwrap();
+    let file = match File::open(path) {
+        Ok(x) => x,
+        Err(y) => return Err(format!("Could not open file because due to {}", y)),
+    };
 
-    let mut archive = ZipArchive::new(file).unwrap();
+    let mut archive = match ZipArchive::new(file) {
+        Ok(x) => x,
+        Err(y) => return Err(format!("Could not open archive due to {}", y)),
+    };
 
     let mut xml = String::new();
 
@@ -93,9 +98,6 @@ pub fn read_odt(path: PathBuf) -> Result<String, String> {
 
     let markdown = convert(&tokens);
 
-    println!("The markdown");
-
-    println!("{}", markdown);
     return Ok(markdown);
 }
 
@@ -109,25 +111,14 @@ fn handle_xml(xml: &String) -> Vec<Tokens> {
 
     for event in parser {
         match event.unwrap() {
-            xml::reader::XmlEvent::StartDocument {
-                version,
-                encoding,
-                standalone,
-            } => {}
+            xml::reader::XmlEvent::StartDocument { .. } => {}
             xml::reader::XmlEvent::EndDocument => {}
-            xml::reader::XmlEvent::ProcessingInstruction { name, data } => {}
+            xml::reader::XmlEvent::ProcessingInstruction { .. } => {}
             xml::reader::XmlEvent::StartElement {
                 name,
                 attributes,
                 namespace,
-            } => handle_start_element(
-                &mut tokens,
-                &mut hash,
-                &mut hashadder,
-                &name,
-                &attributes,
-                &namespace,
-            ),
+            } => handle_start_element(&mut tokens, &mut hash, &mut hashadder, &name, &attributes),
             xml::reader::XmlEvent::EndElement { name } => handle_end_element(&mut tokens, &name),
             xml::reader::XmlEvent::CData(_) => todo!(),
             xml::reader::XmlEvent::Comment(_) => todo!(),
@@ -142,10 +133,6 @@ fn handle_xml(xml: &String) -> Vec<Tokens> {
 }
 
 fn handle_end_element(tokens: &mut Vec<Tokens>, name: &OwnedName) {
-    println!("End element");
-    println!("{}", name);
-    println!("=============");
-
     let name = name.to_string();
 
     if name.contains("text:p") {
@@ -163,22 +150,17 @@ fn handle_start_element(
     hashadder: &mut HashAdder,
     name: &OwnedName,
     attributes: &Vec<OwnedAttribute>,
-    namespace: &Namespace,
 ) {
-    println!("Name: {}", name);
-
     let name = name.to_string();
 
     if name.contains("style:style") {
         for attribute in attributes {
             if attribute.name.local_name == "name" {
-                println!("Adding {} to hashadder", attribute.value);
                 hashadder.add_name(attribute.value.clone());
             }
         }
     } else if name.contains("style:text-properties") {
         for attribute in attributes {
-            println!("{:?}", attribute);
             if attribute.name.local_name == "font-style" && attribute.value == "italic" {
                 hashadder.add_style(Style::Italics);
                 break;
@@ -216,12 +198,9 @@ fn handle_start_element(
             }
         }
     }
-
-    println!("=============");
 }
 
 fn convert(tokens: &Vec<Tokens>) -> String {
-    println!("{:?}", tokens);
     let mut markdown = String::new();
 
     let mut started_style: Option<Style> = None;
